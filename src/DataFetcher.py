@@ -9,8 +9,10 @@ from dotenv import load_dotenv
 import mysql.connector as connection
 import os
 import enum
+import logging
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
 
 DEFAULT_PREV_DAYS = 250
 DEFAULT_INTERVAL = "1d"
@@ -43,12 +45,13 @@ def create_database(cursor, db_name):
 
 
 def read_from_table(symbol, interval):
-    table_name = f"{symbol}_{interval}"
+    table_name = f"{symbol}_{interval.value}"
     return pd.read_sql(f"SELECT * FROM {table_name}", con=DB_CONNECTION)
 
 
 def create_table(symbol, interval, df):
-    table_name = f"{symbol}_{interval}"
+    table_name = f"{symbol}_{interval.value}"
+    logging.info(f"Creating table {table_name} and inserting data into table")
     df.to_sql(con=DB_CONNECTION, name=table_name, if_exists="replace")
 
 
@@ -66,14 +69,15 @@ def fetch_yahoo_data(symbol, prev_days=DEFAULT_PREV_DAYS, interval=DEFAULT_INTER
     :return: pandas dataframe
     """
     try:
+        logging.info(f"Fetching finance data for symbol {symbol}")
         start_date = (date.today() - datetime.timedelta(prev_days)).strftime("%Y-%m-%d")
         end_date = date.today().strftime("%Y-%m-%d")
         ticker = yf.Ticker(symbol)
         historical_data = ticker.history(
             start=start_date, end=end_date, interval=interval
         )
-        df = historical_data.drop(columns=["Dividends", "Stock Splits"])
-        return df.astype(int)
+        return historical_data.drop(columns=["Dividends", "Stock Splits"])
+
     except:
         raise ValueError(f"Unable to fetch finance data for ticker {ticker}")
 
