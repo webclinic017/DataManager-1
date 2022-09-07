@@ -1,3 +1,6 @@
+# ignore credentials
+.env
+
 ### macOS ###
 # General
 .DS_Store
