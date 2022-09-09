@@ -12,7 +12,7 @@ import enum
 import logging
 
 load_dotenv()
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 DEFAULT_PREV_DAYS = 250
 DEFAULT_INTERVAL = "1d"
