@@ -8,18 +8,26 @@ import pathlib
 from dotenv import load_dotenv
 import mysql.connector as connection
 import os
-import enum
+import Enums
 import logging
+import mysql
 
 load_dotenv()
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.ERROR)
 
 DEFAULT_PREV_DAYS = 250
-DEFAULT_INTERVAL = "1d"
+DEFAULT_INTERVAL = Enums.Interval.Daily
 
 SP_TICKERS = "S&P500Tickers.csv"
 
 CUR_PATH = str(pathlib.Path().resolve())
+
+MYSQL_CONNECTION = mysql.connector.connect(
+    host=os.getenv("DB_HOST"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PW"),
+    database=os.getenv("DB_NAME"),
+)
 
 DB_CONNECTION = sqlalchemy.create_engine(
     f'mysql+mysqlconnector://{os.getenv("DB_USER")}:'
@@ -27,14 +35,22 @@ DB_CONNECTION = sqlalchemy.create_engine(
 )
 
 
-class Interval(enum.Enum):
-    Daily = "daily"
-    Hourly = "hourly"
-    Minute_30 = "minute_30"
-    Minute_5 = "minute_5"
+def rename_tables():
+    cursor = MYSQL_CONNECTION.cursor()
+    tickers = get_tickers()
+    for ticker in tickers:
+        try:
+            old_name = f"{ticker}_daily"
+            new_name = f"{ticker}_{Enums.Interval.Daily.value}"
+            query = f"RENAME TABLE {old_name} to {new_name}"
+            cursor.execute(query)
+        except:
+            print(f"Table does not exist for {ticker}")
+            continue
 
 
-def create_database(cursor, db_name):
+def create_database(db_name):
+    cursor = MYSQL_CONNECTION.cursor()
     try:
         cursor.execute(
             "CREATE DATABASE {} DEFAULT CHARACTER SET 'utf8'".format(db_name)
@@ -73,11 +89,11 @@ def fetch_yahoo_data(symbol, prev_days=DEFAULT_PREV_DAYS, interval=DEFAULT_INTER
         start_date = (date.today() - datetime.timedelta(prev_days)).strftime("%Y-%m-%d")
         end_date = date.today().strftime("%Y-%m-%d")
         ticker = yf.Ticker(symbol)
+        print(interval.value)
         historical_data = ticker.history(
-            start=start_date, end=end_date, interval=interval
+            start=start_date, end=end_date, interval=interval.value
         )
         return historical_data.drop(columns=["Dividends", "Stock Splits"])
-
     except:
         raise ValueError(f"Unable to fetch finance data for ticker {ticker}")
 
@@ -97,12 +113,16 @@ def load_csv(file_name):
     return pd.read_csv(CUR_PATH + "/resource/" + file_name)
 
 
+def get_tickers():
+    return load_csv(SP_TICKERS).Symbol.values
+
+
 def persist_sp_data():
-    tickers = load_csv(SP_TICKERS).Symbol.values
+    tickers = get_tickers()
     for ticker in tickers:
         try:
             df = fetch_yahoo_data(ticker)
-            create_table(ticker, Interval.Daily, df)
+            create_table(ticker, Enums.Interval.Daily, df)
         except:
             print(f"Skipping ticker {ticker}")
             continue
