@@ -23,12 +23,7 @@ SP_TICKERS = "S&P500Tickers.csv"
 
 CUR_PATH = str(pathlib.Path().resolve())
 
-MYSQL_CONNECTION = mysql.connector.connect(
-    host=os.getenv("DB_HOST"),
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PW"),
-    database=os.getenv("DB_NAME"),
-)
+MYSQL_CONNECTION = None
 
 DB_CONNECTION = sqlalchemy.create_engine(
     f'mysql+mysqlconnector://{os.getenv("DB_USER")}:'
@@ -36,8 +31,20 @@ DB_CONNECTION = sqlalchemy.create_engine(
 )
 
 
+def get_mysql_connection():
+    if MYSQL_CONNECTION is None:
+        return mysql.connector.connect(
+            host=os.getenv("DB_HOST"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PW"),
+            database=os.getenv("DB_NAME"),
+        )
+    else:
+        return MYSQL_CONNECTION
+
+
 def rename_tables():
-    cursor = MYSQL_CONNECTION.cursor()
+    cursor = get_mysql_connection().cursor()
     tickers = get_tickers()
     for ticker in tickers:
         try:
@@ -51,7 +58,7 @@ def rename_tables():
 
 
 def create_database(db_name):
-    cursor = MYSQL_CONNECTION.cursor()
+    cursor = get_mysql_connection().cursor()
     try:
         cursor.execute(
             "CREATE DATABASE {} DEFAULT CHARACTER SET 'utf8'".format(db_name)
