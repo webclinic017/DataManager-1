@@ -8,15 +8,15 @@ import pathlib
 from dotenv import load_dotenv
 import mysql.connector as connection
 import os
-import Enums
 import logging
 import mysql
+from Enums import Interval
 
 load_dotenv()
 logging.basicConfig(level=logging.ERROR)
 
 DEFAULT_PREV_DAYS = 250
-DEFAULT_INTERVAL = Enums.Interval.Daily
+DEFAULT_INTERVAL = Interval.Daily
 
 SP_TICKERS = "S&P500Tickers.csv"
 
@@ -41,7 +41,7 @@ def rename_tables():
     for ticker in tickers:
         try:
             old_name = f"{ticker}_daily"
-            new_name = f"{ticker}_{Enums.Interval.Daily.value}"
+            new_name = f"{ticker}_{Interval.Daily.value}"
             query = f"RENAME TABLE {old_name} to {new_name}"
             cursor.execute(query)
         except:
@@ -72,7 +72,8 @@ def create_table(symbol, interval, df):
 
 
 def insert(symbol, interval, df):
-    table_name = f"{symbol}_{interval}"
+    table_name = f"{symbol}_{interval.value}"
+    logging.info(f"Updating data for table {table_name}")
     df.to_sql(con=DB_CONNECTION, name=table_name, if_exists="append")
 
 
@@ -89,7 +90,6 @@ def fetch_yahoo_data(symbol, prev_days=DEFAULT_PREV_DAYS, interval=DEFAULT_INTER
         start_date = (date.today() - datetime.timedelta(prev_days)).strftime("%Y-%m-%d")
         end_date = date.today().strftime("%Y-%m-%d")
         ticker = yf.Ticker(symbol)
-        print(interval.value)
         historical_data = ticker.history(
             start=start_date, end=end_date, interval=interval.value
         )
@@ -117,16 +117,19 @@ def get_tickers():
     return load_csv(SP_TICKERS).Symbol.values
 
 
-def persist_sp_data():
+def persist_sp_data(intervals):
     tickers = get_tickers()
+    # TODO batch process this anonymously
     for ticker in tickers:
-        try:
-            df = fetch_yahoo_data(ticker)
-            create_table(ticker, Enums.Interval.Daily, df)
-        except:
-            print(f"Skipping ticker {ticker}")
-            continue
+        for interval in intervals:
+            try:
+                df = fetch_yahoo_data(symbol=ticker, interval=interval)
+                create_table(ticker, interval=interval, df=df)
+            except:
+                print(f"Skipping ticker {ticker}")
+                continue
 
 
 if __name__ == "__main__":
-    persist_sp_data()
+    intervals_to_fill = [Interval.Hourly, Interval.Minute_30]
+    persist_sp_data(intervals_to_fill)

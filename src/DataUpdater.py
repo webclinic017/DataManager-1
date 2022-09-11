@@ -8,7 +8,7 @@ WEEKLY = 7
 def update_tables():
     tickers = DataFetcher.get_tickers()  # TODO Store this list in a table
     for ticker in tickers:
-        # TODO batch process this
+        # TODO batch process this anonymously
         for interval in INTERVALS_TO_UPDATE:
             df = DataFetcher.fetch_yahoo_data(ticker, WEEKLY, interval)
             DataFetcher.insert(ticker, interval, df)
