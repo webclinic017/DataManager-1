@@ -13,10 +13,11 @@ import mysql
 from Enums import Interval
 
 load_dotenv()
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.INFO)
 
 DEFAULT_PREV_DAYS = 250
 DEFAULT_INTERVAL = Interval.Daily
+INTRADAY_INTERVALS = [Interval.Minute_30]
 
 SP_TICKERS = "S&P500Tickers.csv"
 
@@ -86,7 +87,11 @@ def fetch_yahoo_data(symbol, prev_days=DEFAULT_PREV_DAYS, interval=DEFAULT_INTER
     :return: pandas dataframe
     """
     try:
-        logging.info(f"Fetching finance data for symbol {symbol}")
+        logging.info(
+            f"Fetching finance data for symbol {symbol} and interval {interval}"
+        )
+        if interval in INTRADAY_INTERVALS:
+            prev_days = 59
         start_date = (date.today() - datetime.timedelta(prev_days)).strftime("%Y-%m-%d")
         end_date = date.today().strftime("%Y-%m-%d")
         ticker = yf.Ticker(symbol)
