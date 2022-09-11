@@ -10,7 +10,7 @@ import mysql.connector as connection
 import os
 import logging
 import mysql
-from Enums import Interval
+from src.Enums import Interval
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
