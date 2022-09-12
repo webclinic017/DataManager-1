@@ -6,7 +6,7 @@ WEEKLY = 7
 
 
 def update_tables():
-    tickers = DataFetcher.get_tickers()  # TODO Store this list in a table
+    tickers = DataFetcher.get_tickers()
     for ticker in tickers:
         # TODO batch process this anonymously
         for interval in INTERVALS_TO_UPDATE:
