@@ -107,7 +107,7 @@ def fetch_yahoo_data(symbol, prev_days=DEFAULT_PREV_DAYS, interval=DEFAULT_INTER
         )
         return historical_data.drop(columns=["Dividends", "Stock Splits"])
     except:
-        raise ValueError(f"Unable to fetch finance data for ticker {ticker}")
+        raise ValueError(f"Unable to fetch finance data for ticker {symbol}")
 
 
 def get_sp_tickers():
