@@ -107,7 +107,7 @@ def fetch_yahoo_data(symbol, prev_days=DEFAULT_PREV_DAYS, interval=DEFAULT_INTER
         )
         return historical_data.drop(columns=["Dividends", "Stock Splits"])
     except:
-        raise ValueError(f"Unable to fetch finance data for ticker {ticker}")
+        raise ValueError(f"Unable to fetch finance data for ticker {symbol}")
 
 
 def get_sp_tickers():
@@ -121,12 +121,9 @@ def save_to_csv(df, file_name):
     df.to_csv(CUR_PATH + "/resource/" + file_name, index=False)
 
 
-def load_csv(file_name):
-    return pd.read_csv(CUR_PATH + "/resource/" + file_name)
-
-
 def get_tickers():
-    return load_csv(SP_TICKERS).Symbol.values
+    table_name = "Tickers"
+    return pd.read_sql(f"SELECT * FROM {table_name}", con=DB_CONNECTION).Symbol.values
 
 
 def persist_sp_data(intervals):
