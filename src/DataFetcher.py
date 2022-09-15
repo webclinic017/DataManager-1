@@ -11,6 +11,7 @@ import os
 import logging
 import mysql
 from src.Enums import Interval
+from joblib import Parallel, delayed, parallel_backend
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -126,19 +127,24 @@ def get_tickers():
     return pd.read_sql(f"SELECT * FROM {table_name}", con=DB_CONNECTION).Symbol.values
 
 
-def persist_sp_data(intervals):
+def persist_data(symbol, intervals):
+    for interval in intervals:
+        try:
+            df = fetch_yahoo_data(symbol=symbol, interval=interval)
+            create_table(symbol, interval=interval, df=df)
+        except:
+            print(f"Skipping symbol {symbol}")
+            continue
+
+
+def parallel_process():
+    intervals_to_fill = [Interval.Hourly, Interval.Minute_30]
     tickers = get_tickers()
-    # TODO batch process this anonymously
-    for ticker in tickers:
-        for interval in intervals:
-            try:
-                df = fetch_yahoo_data(symbol=ticker, interval=interval)
-                create_table(ticker, interval=interval, df=df)
-            except:
-                print(f"Skipping ticker {ticker}")
-                continue
+    with parallel_backend("threading", n_jobs=10):
+        Parallel()(
+            delayed(persist_data)(ticker, intervals_to_fill) for ticker in tickers
+        )
 
 
 if __name__ == "__main__":
-    intervals_to_fill = [Interval.Hourly, Interval.Minute_30]
-    persist_sp_data(intervals_to_fill)
+    parallel_process()
