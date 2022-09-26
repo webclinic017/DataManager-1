@@ -147,4 +147,5 @@ def parallel_process():
 
 
 if __name__ == "__main__":
-    parallel_process()
+    df = read_from_table("CCI", Interval.Hourly)
+    print(df)
