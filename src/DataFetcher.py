@@ -24,7 +24,12 @@ SP_TICKERS = "S&P500Tickers.csv"
 
 CUR_PATH = str(pathlib.Path().resolve())
 
-MYSQL_CONNECTION = None
+MYSQL_CONNECTION = mysql.connector.connect(
+    host=os.getenv("DB_HOST"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PW"),
+    database=os.getenv("DB_NAME"),
+)
 
 DB_CONNECTION = sqlalchemy.create_engine(
     f'mysql+mysqlconnector://{os.getenv("DB_USER")}:'
@@ -137,15 +142,50 @@ def persist_data(symbol, intervals):
             continue
 
 
+def changeColumn(symbol):
+    intervals = [Interval.Daily, Interval.Hourly, Interval.Minute_30]
+    cursor = get_mysql_connection().cursor()
+    for interval in intervals:
+        tableName = f"{symbol}_{interval.value}"
+        print(tableName)
+        query = f"ALTER TABLE {tableName} MODIFY Time Datetime;"
+        cursor.execute(query)
+
+
+def renameColumn(symbol):
+    intervals = [Interval.Daily, Interval.Hourly, Interval.Minute_30]
+    cursor = get_mysql_connection().cursor()
+    for interval in intervals:
+        tableName = f"{symbol}_{interval.value}"
+        indexColumn = getIndexColumn(interval.value)
+        print(tableName)
+        print(indexColumn)
+        query = f"ALTER TABLE {tableName} RENAME COLUMN `{indexColumn}` TO Time;"
+        cursor.execute(query)
+
+
+def getIndexColumn(interval):
+    columnMap = {"1d": "Date", "1h": "index", "30m": "Datetime"}
+    if interval not in columnMap.keys():
+        raise Exception(
+            f"Add the {interval} to the columnMap with the associated index name as "
+            f"the value"
+        )
+    return columnMap[interval]
+
+
+def modify_table(symbol):
+    if symbol != "MSFT":
+        renameColumn(symbol)
+        changeColumn(symbol)
+
+
 def parallel_process():
     intervals_to_fill = [Interval.Hourly, Interval.Minute_30]
     tickers = get_tickers()
-    with parallel_backend("threading", n_jobs=10):
-        Parallel()(
-            delayed(persist_data)(ticker, intervals_to_fill) for ticker in tickers
-        )
+    with parallel_backend("threading", n_jobs=1):
+        Parallel()(delayed(modify_table)(ticker) for ticker in tickers)
 
 
 if __name__ == "__main__":
-    df = read_from_table("CCI", Interval.Hourly)
-    print(df)
+    parallel_process()
