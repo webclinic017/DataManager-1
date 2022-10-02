@@ -12,6 +12,7 @@ class cointResult:
 		self.tStatADF = None
 		self.pValADF = None
 		self.critValsADF = None
+		self.regressionParamsADF = None
 		self.weightsJo = None
 		self.tStatsJo = None
 		self.tValsJo = None
@@ -26,14 +27,21 @@ def ADFTest(tickData):
 
 	for a in range(len(symsL)-1):
 		for b in range(a+1, len(symsL)):
-			regressionRes = stat.OLS(tickData[symsL[a]]['Close'], tickData[symsL[b]]['Close']).fit()
-			ADFResult = ts.adfuller(regressionRes.resid)
+			td1 = tickData[symsL[a]]['Close']
+			td2 = tickData[symsL[b]]['Close']
+			td2 = stat.add_constant(td2)
+			regressionResult = stat.OLS(td1, td2).fit()
+			ADFResult = ts.adfuller(regressionResult.resid)
+#			print(regressionResult.summary())
+#			print(regressionResult.params[0], regressionResult.params[1])
 
-			if ADFResult[0] <= ADFResult[4][levelsMap[ADF_PASS_RATE]] and ADFResults[1] <= ADF_PASS_RATE:
+			if True:
+#			if ADFResult[0] <= ADFResult[4][levelsMap[ADF_PASS_RATE]] and ADFResult[1] <= ADF_PASS_RATE:
 				ADFResultsAll[symsL[a], symsL[b]] = cointResult([symsL[a], symsL[b]], 'ADF')
 				ADFResultsAll[symsL[a], symsL[b]].tStatADF = ADFResult[0]
 				ADFResultsAll[symsL[a], symsL[b]].pValADF = ADFResult[1]
 				ADFResultsAll[symsL[a], symsL[b]].critValsADF = ADFResult[4]
+				ADFResultsAll[symsL[a], symsL[b]].regressionParamsADF = regressionResult.params
 
 	return ADFResultsAll
 
@@ -72,13 +80,14 @@ def JohansenTest(tickData, maxGroupSize):
 
 	for a in range(len(symsL)-1):
 		for b in range(a+1, len(symsL)):
-			ticks1 = tickData[symsL[a]][['Close']].copy()
-			ticks1.rename(columns={'Close':symsL[a][0]}, inplace=True)
-			ticks2 = tickData[symsL[b]][['Close']].copy()
-			ticks2.rename(columns={'Close':symsL[b][0]}, inplace=True)
-			testDF2 = pd.concat([ticks1, ticks2], axis=1)
+#			ticks1 = tickData[symsL[a]]['Close'].copy()
+#			ticks1.rename(columns={'Close':symsL[a][0]}, inplace=True)
+#			ticks2 = tickData[symsL[b]]['Close'].copy()
+#			ticks2.rename(columns={'Close':symsL[b][0]}, inplace=True)
+			testDF = pd.concat([tickData[symsL[a]]['Close'], tickData[symsL[b]]['Close']], axis=1)
+#			testDF2 = pd.concat([ticks1, ticks2], axis=1)
 
-			testPass2, JoResult2 = runJohansen([symsL[a], symsL[b]], testDF2)
+			testPass2, JoResult2 = runJohansen([symsL[a], symsL[b]], testDF)
 			if testPass2 == True:
 				JohansenResultsAll[symsL[a], symsL[b]] = JoResult2
 
