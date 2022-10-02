@@ -5,6 +5,26 @@ import backtrader.indicators as btind
 import backtrader.feeds as btfeeds
 import backtrader.filters as btfilters
 import backtrader.analyzers as btanalyzers
+import datetime as dt
+from datetime import datetime, timedelta
+
+BROKER_COMMISSION, BROKER_MARGIN, BROKER_MULT = 0.0, None, 1
+QUICK_TEST = False
+PRINT_TICKS = False
+USE_RUNNING_STOP = False
+RUNNING_STOP = 0.1 #as percentage of ATR
+HARD_STOP = 1.0
+HARD_GAIN = 1.0
+COOL_TICKS = 3
+MIN_EMA_WIDTH = 0.25 #as percentage of ATR
+MIN_ATR = 0.00020
+
+class btParams():
+	def __init__(self, emaFast=None, emaSlow=None, smaFast=None, smaSlow=None):
+		self.emaFast = emaFast
+		self.emaSlow = emaSlow
+		self.smaFast = smaFast
+		self.smaSlow = smaSlow
 
 class testResults():
 	def __init__(self, pnl, sharpe, sqn, totClosed, totWon, totLost, strikeRate, winStreak, loseStreak):
@@ -59,12 +79,6 @@ class TestStrategy(bt.Strategy):
 			if order.isbuy():
 				if self.position.size == 0:
 					self.runningPnlTicks += self.runningTradePrice - order.executed.price
-					if self.runningTradePrice > order.executed.price:
-						allTradeTimes[testingSym][self.params.emaFast][self.params.emaSlow][USE_RUNNING_STOP][RUNNING_STOP][HARD_STOP][HARD_GAIN].allTimes[self.tradeEntryTime] += 1
-						consolidatedTradeTimes[testingSym].allTimes[self.tradeEntryTime] += 1
-					else:
-						allTradeTimes[testingSym][self.params.emaFast][self.params.emaSlow][USE_RUNNING_STOP][RUNNING_STOP][HARD_STOP][HARD_GAIN].allTimes[self.tradeEntryTime] -= 1
-						consolidatedTradeTimes[testingSym].allTimes[self.tradeEntryTime] -= 1
 				else:
 					self.runningTradePrice = order.executed.price
 					self.stopLossTrail = self.dataLow[0] - RUNNING_STOP * self.ATR[0]
@@ -82,12 +96,6 @@ class TestStrategy(bt.Strategy):
 			elif order.issell():
 				if self.position.size == 0:
 					self.runningPnlTicks += order.executed.price - self.runningTradePrice
-					if self.runningTradePrice < order.executed.price:
-						allTradeTimes[testingSym][self.params.emaFast][self.params.emaSlow][USE_RUNNING_STOP][RUNNING_STOP][HARD_STOP][HARD_GAIN].allTimes[self.tradeEntryTime] += 1
-						consolidatedTradeTimes[testingSym].allTimes[self.tradeEntryTime] += 1
-					else:
-						allTradeTimes[testingSym][self.params.emaFast][self.params.emaSlow][USE_RUNNING_STOP][RUNNING_STOP][HARD_STOP][HARD_GAIN].allTimes[self.tradeEntryTime] -= 1
-						consolidatedTradeTimes[testingSym].allTimes[self.tradeEntryTime] -= 1
 				else:
 					self.runningTradePrice = order.executed.price
 					self.stopLossTrail = self.dataHigh[0] + RUNNING_STOP * self.ATR[0]
@@ -240,7 +248,7 @@ def addCerebro(tickData):
 	)
 
 	whichDataFeed = pd.DataFrame()
-	whichDataFeed = tickData[sym].copy()
+	whichDataFeed = tickData.copy()
 
 	data = bt.feeds.PandasData(dataname=tickData, timeframe=bt.TimeFrame.Minutes)
 	cerebro.adddata(data)
@@ -252,11 +260,11 @@ def addCerebro(tickData):
 	cerebro.addanalyzer(bt.analyzers.Returns, _name='myReturns', timeframe=bt.TimeFrame.Minutes)
 	cerebro.addanalyzer(bt.analyzers.SQN, _name="mySqn")
 
-	cerebro.broker.setcommission(commission=commission, margin=margin, mult=mult)
+	cerebro.broker.setcommission(commission=BROKER_COMMISSION, margin=BROKER_MARGIN, mult=BROKER_MULT)
 	cerebro.addsizer(bt.sizers.SizerFix, stake=4)
 
-def runCerebro(plotIt=False):
-	cerebro.addstrategy(TestStrategy)
+def runCerebro(theseParams, plotIt=False):
+	cerebro.addstrategy(TestStrategy, emaFast=theseParams.emaFast, emaSlow=theseParams.emaSlow)
 	start_portfolio_value = cerebro.broker.getvalue()
 
 	myResults = cerebro.run(maxcpus=1)
@@ -286,7 +294,31 @@ def runCerebro(plotIt=False):
 		myResult.analyzers.myAnalysis.get_analysis().streak.won.longest,
 		myResult.analyzers.myAnalysis.get_analysis().streak.lost.longest)
 
-def runBacktesting(tickData):
-	addCerebro(tickData)
-	pnl, sharpe, sqn, totClosed, totWon, totLost, strikeRate, winStreak, loseStreak = runCerebro()
-	return testResults(pnl, sharpe, sqn, totClosed, totWon, totLost, strikeRate, winStreak, loseStreak)
+def runOptimization(tickData, optMetric):
+	allResults = {}
+	optimizedParams = None
+
+	for eachEMAFast in range(50, 55, 5):
+		for eachEMASlow in range(100, 105, 5):
+			theseParams = btParams(eachEMAFast, eachEMASlow)
+
+			addCerebro(tickData)
+			pnl, sharpe, sqn, totClosed, totWon, totLost, strikeRate, winStreak, loseStreak = runCerebro(theseParams)
+			allResults[theseParams] = testResults(pnl, sharpe, sqn, totClosed, totWon, totLost, strikeRate, winStreak, loseStreak)
+
+	for eachParam in allResults:
+		if optimizedParams is None:
+			optimizedParams = eachParam
+		else:
+			if optMetric == 'pnl':
+				if allResults[eachParam].pnl > allResults[optimizedParams]:
+					optimizedParams = eachParam
+			elif optMetric == 'sharpe':
+				if allResults[eachParam].sharpe > allResults[optimizedParams]:
+					optimizedParams = eachParam
+
+	return optimizedParams, allResults[optimizedParams]
+
+def runBacktesting(tickData, optMetric):
+	optimizedParams, optimizedResults = runOptimization(tickData, optMetric)
+	return optimizedResults
